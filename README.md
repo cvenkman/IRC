@@ -67,6 +67,6 @@ struct sockaddr_in {
  unsigned short int sin_port; // Номер порта
  struct in_addr sin_addr; // Интернет адрес
  unsigned char sin_zero[8]; // Размер как у struct sockaddr
-}; 
+};
 
 ### struct in_addr

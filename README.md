@@ -63,10 +63,15 @@ b3 и следом 4f
 Используется как замена структуре sockaddr (потому что помимо семейства протокола (AF_INET или AF_INET6) в sockaddr еще есть поле char sa_data[14], в котором должны храниться адрес назначения и номер порта для сокета, и легче заполнить структуру sockaddr_in, чем массив sa_data) - если нужно послать в функцию (например, в connect() или bind()) sockaddr_in приводится к sockaddr.
 
 struct sockaddr_in {
+
  short int sin_family; // Семейство адресов, AF_INET
+ 
  unsigned short int sin_port; // Номер порта
+ 
  struct in_addr sin_addr; // Интернет адрес
+ 
  unsigned char sin_zero[8]; // Размер как у struct sockaddr
+ 
 };
 
 ### struct in_addr

@@ -116,9 +116,17 @@ int main(int argc, char **argv)
      * Исходный до сих пор слушает новые подключения,
        а вновь созданный полностью готов к send() и recv()
     ********************************/
+
+// где-то здесь нужно начать бесконечный цикл
+
     struct sockaddr_in clientaddr;
     socklen_t len = sizeof(clientaddr);
 
+    /*
+     * теперь у нас есть socketFd и newFd:
+     * на socketFd слушать
+     * на newFd новое подключения
+    */
     int newFd = accept(socketFd, (struct sockaddr *)&clientaddr, &len); // украла эту строку из экзамена
     if (newFd == -1) {
         perror("accept");

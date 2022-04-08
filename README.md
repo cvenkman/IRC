@@ -10,13 +10,19 @@
 
 [IRC RFC на русском](https://www.lissyara.su/doc/rfc/rfc1459/)
 
-[книга про сокеты и сетевому программированию](https://beej.us/guide/bgnet/translations/bgnet_A4_rus.pdf)
+[книга сетевому программированию](https://beej.us/guide/bgnet/translations/bgnet_A4_rus.pdf)
 
 [select и poll](https://it.wikireading.ru/24833)
 
 [sockaddr и sockaddr_in](https://www.russianblogs.com/article/8587603498/)
 
 [видео по ft_irc](https://www.youtube.com/watch?v=I9o-oTdsMgI)
+
+Большая часть того, что снизу из книжки сверху :)
+
+и эта картинка тоже отуда:
+
+![](img.png)
 
 ### Клиент
 

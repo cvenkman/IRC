@@ -8,7 +8,9 @@
 
 #include <stdlib.h>
 #include <iostream>
+#include <string>
 
+#include <unistd.h>// close
 
 void printIPV4(char *ip, struct addrinfo *servinfo) {
     std::cout << "IP addresses for " << ip << "\n";
@@ -67,7 +69,7 @@ int main(int argc, char **argv)
     printIPV4(argv[1], servinfo);
 
     freeaddrinfo(servinfo); // освободить связанный список, не знаю пока, нужно ли это
-    
+
     int socketFd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
     if (socketFd == -1) {
         perror("socket");
@@ -123,5 +125,35 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* отправляем сообщение клиенту */
+    std::string msg = "hi i'm a message for a client\n";
+    int sentBytes = send(newFd, msg.c_str(), msg.length(), 0);
+    /* sentBytes может быть меньше msg.length(), хз пока что с этим делать */
+    if (sentBytes == -1) {
+        perror("send");
+        return 1;
+    }
+
+    /* читаем сообщение от клиента */
+    char buf[100];
+    bzero(&buf, 100);
+    int readBytes = recv(newFd, &buf, 100, 0);
+    /*
+     * recv() может возвращать 0.
+     * Это означает, что удалённая сторона (клиент) закрыла для вас подключение
+    */
+    if (readBytes == -1) {
+        perror("recv");
+        return 1;
+    }
+    std::cout << buf << "\n";
+
+
+//getpeername - это не пробовала
+//gethostname - это не работает
+
+
+    close(newFd); // shutdown() (но после него все равно нужно вызвать close)
+    close(socketFd);
     return 0;
 }

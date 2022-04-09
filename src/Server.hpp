@@ -27,7 +27,7 @@ private:
 	void createSocket();
 	void Socket();
 	void Listen();
-	void Accept();
+	int Accept(int fd);
 	void readDataFromClient(int fd);
 
 public:

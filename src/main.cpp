@@ -52,7 +52,12 @@ int main(int argc, char **argv)
 
     Server *server = new Server(argv[1]);
 
-    server->init();
+    try {
+        server->init();
+    } catch(const std::exception& e) {
+        return 1;
+    }
+    
     server->mainLoop();
 
 

@@ -56,17 +56,40 @@ void Server::Listen() {
 	}
 }
 
+void Server::Accept() {
+	int newFd;
+	struct sockaddr_in clientAddr; // для accept()
+	socklen_t clientAddrLen = sizeof(clientAddr);
+	newFd = accept(socketFd, (struct sockaddr *)&clientAddr, &clientAddrLen); // украла эту строку из экзамена
+	if (newFd == -1) {
+		perror("accept");
+		throw ServerStandartFunctionsException("accept (port: " + port + ")");
+	}
+	/*
+	* теперь у нас есть socketFd и newFd:
+	* на socketFd - слушать запросы на соединение
+	* на newFd - обслуживать соединение (новое подключение) конкретного клиента
+	*/
+	std::cout << "Server: new connect; client's fd: " << newFd << "\n";
+	/* новый сокет newFd добавили в множество активных сокетов activeSet (установить в 1 newFd в activeSet) */
+	FD_SET(newFd, &activeSet);
+}
+
+void Server::readDataFromClient(int fd) {
+}
+
+
+
+
+
 int Server::mainLoop() {
-	fd_set activeSet, readSet; // множества дескрипторов для select
+	fd_set readSet; // множества дескрипторов для select
 	FD_ZERO(&activeSet);
 	/*
 	* в activeSet устанавливаем 1 по тому номеру, который соотвествует socketFd
 	* т.е. сейчас в activeSet один сокет socketFd, который принимает запросы на соединение
 	*/
 	FD_SET(socketFd, &activeSet); // FIXME
-
-	
-	int newFd;
 
 	while (1) {
 		/*
@@ -87,16 +110,7 @@ int Server::mainLoop() {
 				if (i == socketFd) {
 					// подтверждение соединения
 					// пришел запрос на новое соединение (клиент выполнил connect => мы должны сделать accept)
-					struct sockaddr_in clientAddr; // для accept()
-					socklen_t clientAddrLen = sizeof(clientAddr);
-					newFd = accept(socketFd, (struct sockaddr *)&clientAddr, &clientAddrLen); // украла эту строку из экзамена
-					if (newFd == -1) {
-						perror("accept");
-						return 1;
-					}
-					std::cout << "Server: new connect; client's fd: " << newFd << "\n";
-					/* новый сокет newFd добавили в множество активных сокетов activeSet (установить в 1 newFd в activeSet) */
-					FD_SET(newFd, &activeSet);
+					Accept();
 				}
 				else {
 					// пришли данные в уже существующем соединение и нам нужно работать с клиентом
@@ -105,15 +119,12 @@ int Server::mainLoop() {
 					char buf[100];
 					bzero(&buf, 100);
 					int readBytes = recv(i, &buf, 100, 0);
-					/*
-					* recv() может возвращать 0.
-					* Это означает, что удалённая сторона (клиент) закрыла для вас подключение
-					*/
 					if (readBytes == -1) {
 						close(i);
 						FD_CLR(i, &activeSet); // удаляем из активного множества
 						perror("recv");
 					}
+					
 					else if (!strncmp(buf, "stop", 4)) {
 						close(i);
 						FD_CLR(i, &activeSet);
@@ -134,17 +145,6 @@ int Server::mainLoop() {
 				}
 			}
 		}
-
-		// /*
-		// * теперь у нас есть socketFd и newFd:
-		// * на socketFd - слушать запросы на соединение
-		// * на newFd - обслуживать соединение (новое подключение) конкретного клиента
-		// */
-		// int newFd = accept(socketFd, (struct sockaddr *)&clientaddr, &len); // украла эту строку из экзамена
-		// if (newFd == -1) {
-		//     perror("accept");
-		//     return 1;
-		// }
 		// close(newFd); // shutdown() (но после него все равно нужно вызвать close)
 	}
 	close(socketFd);

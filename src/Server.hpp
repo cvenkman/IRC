@@ -21,11 +21,14 @@ private:
 	struct addrinfo *serverInfo;
 	std::string port;
 	int socketFd;
+	fd_set activeSet;
 
 	void createServerInfo();
 	void createSocket();
 	void Socket();
 	void Listen();
+	void Accept();
+	void readDataFromClient(int fd);
 
 public:
 	Server(std::string port) : port(port) {

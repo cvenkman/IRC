@@ -119,3 +119,34 @@ int select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct t
   пока один из каналов в множестве activeSet не проявит активность)
 
 * блокируемся на select, а не на accept
+
+
+Networking
+Check the following requirements:
+- The server starts, and listens on all network interfaces on the port
+given from the command line.
+- Using the 'nc' tool, you can connect to the server, send commands,
+and the server answers you back.
+- Ask the team what is their reference IRC client.
+- Using this IRC client, you can connect to the server.
+- The server can handle multiple connections at the same time. The server
+should not block. It should be able to answer all demands. Do some test
+with the IRC client and nc at the same time.
+- Join a channel thanks to the appropriate command. Ensure that all
+messages from one client on that channel are sent to all other clients
+that joined the channel.
+
+
+Networking specials
+Network communications can be disturbed by many strange situations.
+- Just like in the subject, using nc, try to send partial commands. Check
+that the server answers correctly. With a partial command sent, ensure
+that other connections still run fine.
+- Unexpectedly kill a client. Then check that the server is still
+operational for the other connections and for any new incoming client.
+- Unexpectedly kill a nc with just half of a command sent. Check again that
+the server is not in an odd state or blocked.
+- Stop a client (^-Z) connected on a channel. Then flood the channel using
+another client. The server should not hang. When the client is live again,
+all stored commands should be processed normally. Also, check for memory
+leaks during this operation.

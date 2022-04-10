@@ -15,6 +15,10 @@
 #include <unistd.h> // close
 
 #include <exception>
+#include <sys/poll.h>
+#include <vector>
+#include "User.hpp"
+
 class Server {
 
 private:
@@ -22,6 +26,11 @@ private:
 	std::string port;
 	int socketFd;
 	fd_set activeSet;
+	pollfd pollFd;
+	std::vector<struct pollfd> userFd;
+	std::vector<User *> users;
+
+	std::string hiMsg;
 
 	void createServerInfo();
 	void createSocket();
@@ -31,7 +40,7 @@ private:
 	void readDataFromClient(int fd);
 
 public:
-	Server(std::string port) : port(port) {
+	Server(std::string port) : port(port), hiMsg("cat!@127.0.0.1\n") {
 		createServerInfo();
 	}
 

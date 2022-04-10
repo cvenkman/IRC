@@ -1,7 +1,5 @@
 #include "Server.hpp"
 
-#include <sys/poll.h>
-
 void Server::init() {
 	this->createSocket();
 	this->getSocketFd();
@@ -72,7 +70,27 @@ int Server::Accept(int fd) {
 	* на socketFd - слушать запросы на соединение
 	* на newFd - обслуживать соединение (новое подключение) конкретного клиента
 	*/
-	std::cout << "Server: new connect; client's fd: " << newFd << "\n";
+	std::string msg("SERVER: new client with fd: " + std::to_string(newFd) + "\n");
+	
+	std::cout << msg;
+
+	for (int i = 1; i < this->userFd.size(); i++) {
+		int sentBytes = send(userFd[i].fd, msg.c_str(), msg.length(), 0);
+		if (sentBytes == -1) {
+			perror("send");
+			throw ServerStandartFunctionsException("send");
+		}
+	}
+
+	pollFd.fd = newFd;
+	pollFd.events = POLLIN;
+	pollFd.revents = 0;
+	userFd.push_back(pollFd);
+
+	User *newUser = new User();
+	users.push_back(newUser);
+
+
 	/* новый сокет newFd добавили в множество активных сокетов activeSet (установить в 1 newFd в activeSet) */
 	// FD_SET(newFd, &activeSet);
 	return newFd;
@@ -81,75 +99,65 @@ int Server::Accept(int fd) {
 void Server::readDataFromClient(int fd) {
 }
 
-
 int Server::mainLoop() {
-	pollfd actSet[100];
-	actSet[0].fd = socketFd;
-	actSet[0].events = POLLIN;
-	actSet[0].revents = 0;
-	int numSet = 1;
+	pollFd.fd = socketFd;
+	pollFd.events = POLLIN;
+	pollFd.revents = 0;
+	userFd.push_back(pollFd);
+	// int numSet = 1;
 	int newFd;
 
 	while (1) {
-		int ret = poll(actSet, numSet, -1);
+		int ret = poll(userFd.data(), userFd.size(), -1);
 		if (ret == -1) {
 			perror("poll");
 			throw ServerStandartFunctionsException("poll (port: " + port + ")");
 		}
 
 		if (ret > 0) {
-			for (int i = 0; i < numSet; i++) {
-				if (actSet[i].revents &POLLIN) {
-					std::cout << "get POLLIN at fd=" << actSet[i].fd << "\n";
-					actSet[i].revents = 0;
-					if (i == 0) {
+			for (int i = 0; i < userFd.size(); i++) {
+
+				if (userFd[i].revents & POLLIN) {
+					userFd[i].revents = 0;
+
+					if (userFd[i].fd == socketFd) {
 						// создание нового соединения
-						newFd = Accept(actSet[i].fd);
+						newFd = Accept(userFd[i].fd);
 						// регистрация нового сокета
-						if (numSet < 100) {
-							actSet[numSet].fd = newFd;
-							actSet[numSet].events = POLLIN;
-							actSet[numSet].revents = 0;
-							numSet++;
-						}
-						else {
-							std::cout << "no more sockets for client\n";
-							close(newFd);
-						}
+
+
 					}
 
 					else {
 						char buf[100];
 						bzero(&buf, 100);
-						int readBytes = recv(actSet[i].fd, &buf, 100, 0);
+						int readBytes = recv(userFd[i].fd, &buf, 100, 0);
 						if (readBytes == -1) {
 							perror("recv");
-							close(actSet[i].fd);
-							// if (i < numSet - 1) {
-							// 	actSet[i] = actSet[numSet - 1];
-							// 	numSet--;
-							// 	i--;
-							// }
+							close(userFd[i].fd);
+							userFd.erase(userFd.begin() + i);
 						}
 						else if (!strncmp(buf, "stop", 4)) {
-							close(actSet[i].fd);
-							// if (i < numSet - 1) {
-							// 	actSet[i] = actSet[numSet - 1];
-							// 	numSet--;
-							// 	i--;
-							// }
+							std::cout << "SERVER: stop client with fd: " << userFd[i].fd << "\n";
+							close(userFd[i].fd);
+							userFd.erase(userFd.begin() + i);
 						}
+						// else if (!strncmp(buf, "PASS 123", 8)) {
+						// 	send(userFd[i].fd, hiMsg.c_str(), hiMsg.length(), 0);
+						// }
+
+
 						else {
-							std::string msg = "hi i'm a message for a client with fd=" + std::to_string(i);
-							msg += ", your message: ";
+							std::string msg = "CLIENTS FD: " + std::to_string(userFd[i].fd) + " : ";
 							msg += buf;
-							int sentBytes = send(actSet[i].fd, msg.c_str(), msg.length(), 0);
-							if (sentBytes == -1) {
-								perror("send");
-								return 1;
+							for (int i = 1; i < this->userFd.size(); i++) {
+								int sentBytes = send(userFd[i].fd, msg.c_str(), msg.length(), 0);
+								if (sentBytes == -1) {
+									perror("send");
+									throw ServerStandartFunctionsException("send");
+								}
 							}
 						}
-						std::cout << "From client (fd = " << i << "): " << buf << "\n";
 					}
 				}
 			}
@@ -158,73 +166,3 @@ int Server::mainLoop() {
 	close(socketFd);
 	return 0;
 }
-
-
-// int Server::mainLoop() {
-// 	fd_set readSet; // множества дескрипторов для select
-// 	FD_ZERO(&activeSet);
-// 	/*
-// 	* в activeSet устанавливаем 1 по тому номеру, который соотвествует socketFd
-// 	* т.е. сейчас в activeSet один сокет socketFd, который принимает запросы на соединение
-// 	*/
-// 	FD_SET(socketFd, &activeSet); // FIXME
-
-// 	while (1) {
-// 		/*
-// 		 * FD_SETSIZE - максимальное кол-во каналов в системе,
-// 		 * т.е. рассматриваем столько элементов, сколько множество содержит
-// 		*/
-
-// 		readSet = activeSet; // делаем копию т.к. select() изменяет множество, а нам дальеш нужно знать, кого читать
-// 		if (select(FD_SETSIZE, &readSet, NULL, NULL, NULL) < 0) { //FIXME
-// 			perror("select");
-// 			return 1;
-// 		}
-// 		// на этой строчке у нас либо возникла ошибка в select, либо появились данные в одном из каналов readSet
-
-// 		// нужно проверить в каком сокете (в каком элементе readSet) появились данные (т.е. 1)
-// 		for (int i = 0; i < FD_SETSIZE; i++) {
-// 			if (FD_ISSET(i, &readSet)) {
-// 				if (i == socketFd) {
-// 					// подтверждение соединения
-// 					// пришел запрос на новое соединение (клиент выполнил connect => мы должны сделать accept)
-// 					Accept();
-// 				}
-// 				else {
-// 					// пришли данные в уже существующем соединение и нам нужно работать с клиентом
-					
-// 					/* читаем сообщение от клиента */
-// 					char buf[100];
-// 					bzero(&buf, 100);
-// 					int readBytes = recv(i, &buf, 100, 0);
-// 					if (readBytes == -1) {
-// 						close(i);
-// 						FD_CLR(i, &activeSet); // удаляем из активного множества
-// 						perror("recv");
-// 					}
-					
-// 					else if (!strncmp(buf, "stop", 4)) {
-// 						close(i);
-// 						FD_CLR(i, &activeSet);
-// 					}
-// 					else {
-// 						/* отправляем сообщение клиенту */
-// 						std::string msg = "hi i'm a message for a client with fd=" + std::to_string(i);
-// 						msg += ", your message: ";
-// 						msg += buf;
-// 						int sentBytes = send(i, msg.c_str(), msg.length(), 0);
-// 						/* sentBytes может быть меньше msg.length(), хз пока что с этим делать */
-// 						if (sentBytes == -1) {
-// 							perror("send");
-// 							return 1;
-// 						}
-// 					}
-// 					std::cout << "From client (fd = " << i << "): " << buf << "\n";
-// 				}
-// 			}
-// 		}
-// 		// close(newFd); // shutdown() (но после него все равно нужно вызвать close)
-// 	}
-// 	close(socketFd);
-// 	return 0;
-// }

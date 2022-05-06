@@ -18,8 +18,12 @@ void printIPV4(struct addrinfo *servinfo) {
 
 
 void checkPort(int argc, char **argv) {
-    if (argc != 2) {
-        std::cout << "need an ip and a port\n";
+    if (argc != 3) {
+        std::cout << "need a port and a password\n";
+        exit(EXIT_FAILURE);
+    }
+    if (atoi(argv[1]) < 1024 || atoi(argv[1]) > 49151) {
+        std::cout << "not valid port\n";  // проверить диапозон
         exit(EXIT_FAILURE);
     }
     for (int i = 0; argv[1][i] != '\0'; i++) {
@@ -44,13 +48,14 @@ void checkPort(int argc, char **argv) {
  *      accept();
  * связываемся по дескриптору сокета new_fd
 */
+
 int main(int argc, char **argv)
 {
     checkPort(argc, argv);
 
     std::cout << "start\n\n";
 
-    Server *server = new Server(argv[1]);
+    Server *server = new Server(argv[1], argv[2]);
 
     try {
         server->init();

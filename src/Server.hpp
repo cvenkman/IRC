@@ -17,18 +17,21 @@
 #include <exception>
 #include <sys/poll.h>
 #include <vector>
+#include <map>
 #include "User.hpp"
+#include <fcntl.h>
 
 class Server {
 
 private:
 	struct addrinfo *serverInfo;
 	std::string port;
+	std::string password;
 	int socketFd;
 	fd_set activeSet;
 	pollfd pollFd;
 	std::vector<struct pollfd> userFd;
-	std::vector<User *> users;
+	std::map<int, User *> users;
 
 	std::string hiMsg;
 
@@ -36,24 +39,25 @@ private:
 	void createSocket();
 	void Socket();
 	void Listen();
-	int Accept(int fd);
+	int Accept();
 	void readDataFromClient(int fd);
+	int Send(int fd, const void *msg, size_t msgSize, int flags);
 
 public:
-	Server(std::string port) : port(port), hiMsg("cat!@127.0.0.1\n") {
+	Server(std::string port, std::string password) : port(port), password(password), hiMsg("cat!@127.0.0.1\n") {
 		createServerInfo();
 	}
 
 	~Server() {}
 
-	class ServerStandartFunctionsException : public std::exception {
-		private:
-			std::string error;
-		public:
-			ServerStandartFunctionsException(std::string const& error) : error(error) {};
-			const char* what() const throw() {return error.c_str(); };
-			~ServerStandartFunctionsException() throw() {};
-	};
+	// class ServerStandartFunctionsException : public std::exception {
+	// 	private:
+	// 		std::string error;
+	// 	public:
+	// 		ServerStandartFunctionsException(std::string const& error) : error(error) {};
+	// 		const char* what() const throw() {return error.c_str(); };
+	// 		~ServerStandartFunctionsException() throw() {};
+	// };
 
 	struct addrinfo *getServerInfo() {return serverInfo; }
 	int const &getSocketFd() const {return this->socketFd; }
@@ -63,4 +67,5 @@ public:
 
 	int mainLoop();
 
+	void sendToAllUsers(std::string &msg, int currentUserFd);
 };

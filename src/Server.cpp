@@ -17,17 +17,16 @@ void Server::createServerInfo() {
 	int status = getaddrinfo("localhost", port.c_str(), &hints, &serverInfo);
 	if (status != 0) {
 		perror("getaddrinfo");
-		throw ServerStandartFunctionsException("getaddrinfo (port: " + port + ")");
+		throw std::runtime_error("SERVER ERROR: getaddrinfo (port: " + port + ")");
 	}
 	freeaddrinfo(serverInfo); // освободить связанный список, не знаю пока, нужно ли это
-
 }
 
 void Server::createSocket() {
 	socketFd = socket(serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol);
 	if (socketFd == -1) {
 		perror("socket");
-		throw ServerStandartFunctionsException("socket");
+		throw std::runtime_error("SERVER ERROR: socket");
 	}
 }
 
@@ -37,11 +36,11 @@ void Server::Socket() {
 	int opt = 1;
 	if (setsockopt(socketFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1) {
 		perror("setsockopt");
-		throw ServerStandartFunctionsException("setsockopt");
+		throw std::runtime_error("SERVER ERROR: setsockopt");
 	}
 	if (bind(socketFd, serverInfo->ai_addr, serverInfo->ai_addrlen) == -1) {
 		perror("bind");
-		throw ServerStandartFunctionsException("bind");
+		throw std::runtime_error("SERVER ERROR: bind");
 	}
 }
 
@@ -52,18 +51,19 @@ void Server::Listen() {
 	*/
 	if (listen(socketFd, 0) == -1) {
 		perror("listen");
-		throw ServerStandartFunctionsException("listen (port: " + port + ")");
+		throw std::runtime_error("SERVER ERROR: listen (port: " + port + ")");
 	}
+	fcntl(socketFd, F_SETFL, O_NONBLOCK); // FIXME
 }
 
-int Server::Accept(int fd) {
+int Server::Accept() {
 	int newFd;
 	struct sockaddr_in clientAddr; // для accept()
 	socklen_t clientAddrLen = sizeof(clientAddr);
-	newFd = accept(fd, (struct sockaddr *)&clientAddr, &clientAddrLen); // украла эту строку из экзамена
+	newFd = accept(socketFd, (struct sockaddr *)&clientAddr, &clientAddrLen); // украла эту строку из экзамена
 	if (newFd == -1) {
 		perror("accept");
-		throw ServerStandartFunctionsException("accept (port: " + port + ")");
+		throw std::runtime_error("SERVER ERROR: accept (port: " + port + ")");
 	}
 	/*
 	* теперь у нас есть socketFd и newFd:
@@ -74,30 +74,31 @@ int Server::Accept(int fd) {
 	
 	std::cout << msg;
 
-	for (int i = 1; i < this->userFd.size(); i++) {
-		int sentBytes = send(userFd[i].fd, msg.c_str(), msg.length(), 0);
-		if (sentBytes == -1) {
-			perror("send");
-			throw ServerStandartFunctionsException("send");
-		}
-	}
+	sendToAllUsers(msg, newFd);
+	Send(newFd, "SERVER: enter PASS, NICK, USER\n", 31, 0);
 
 	pollFd.fd = newFd;
 	pollFd.events = POLLIN;
 	pollFd.revents = 0;
 	userFd.push_back(pollFd);
 
-	User *newUser = new User();
-	users.push_back(newUser);
+	User *newUser = new User(newFd);
+	users.insert(std::pair<int, User *>(newFd, newUser));
 
-
-	/* новый сокет newFd добавили в множество активных сокетов activeSet (установить в 1 newFd в activeSet) */
-	// FD_SET(newFd, &activeSet);
+	
 	return newFd;
 }
 
 void Server::readDataFromClient(int fd) {
 }
+
+// bool	work = true;
+
+// void	sigHandler(int signum)
+// {
+// 	(void)signum;
+// 	work = false;
+// }
 
 int Server::mainLoop() {
 	pollFd.fd = socketFd;
@@ -107,11 +108,12 @@ int Server::mainLoop() {
 	// int numSet = 1;
 	int newFd;
 
-	while (1) {
+	// signal(SIGINT, sigHandler);
+	while (true) {
 		int ret = poll(userFd.data(), userFd.size(), -1);
 		if (ret == -1) {
 			perror("poll");
-			throw ServerStandartFunctionsException("poll (port: " + port + ")");
+			throw std::runtime_error("SERVER ERROR: poll (port: " + port + ")");
 		}
 
 		if (ret > 0) {
@@ -122,22 +124,29 @@ int Server::mainLoop() {
 
 					if (userFd[i].fd == socketFd) {
 						// создание нового соединения
-						newFd = Accept(userFd[i].fd);
+						newFd = Accept();
 						// регистрация нового сокета
-
-
 					}
 
 					else {
+
+
+
+	/// ПЕРЕПИСАТЬ buf[100] В ЦИКЛ С buf[99]
+
+
+
+
 						char buf[100];
 						bzero(&buf, 100);
 						int readBytes = recv(userFd[i].fd, &buf, 100, 0);
 						if (readBytes == -1) {
-							perror("recv");
 							close(userFd[i].fd);
 							userFd.erase(userFd.begin() + i);
 						}
-						else if (!strncmp(buf, "stop", 4)) {
+						buf[readBytes - 1] = '\0';
+						std::cout << '|' << buf << "|" << "\n";
+						if (!strcmp(buf, "stop")) {
 							std::cout << "SERVER: stop client with fd: " << userFd[i].fd << "\n";
 							close(userFd[i].fd);
 							userFd.erase(userFd.begin() + i);
@@ -148,14 +157,20 @@ int Server::mainLoop() {
 
 
 						else {
-							std::string msg = "CLIENTS FD: " + std::to_string(userFd[i].fd) + " : ";
-							msg += buf;
-							for (int i = 1; i < this->userFd.size(); i++) {
-								int sentBytes = send(userFd[i].fd, msg.c_str(), msg.length(), 0);
-								if (sentBytes == -1) {
-									perror("send");
-									throw ServerStandartFunctionsException("send");
-								}
+							std::string passwordStr("PASS " + password);
+							// std::cout << passwordStr << " " << passwordStr.length() << "\n";
+							// std::cout << buf << "\n";
+							if (!strcmp(buf, password.c_str())) {
+								send(userFd[i].fd, hiMsg.c_str(), hiMsg.length(), 0);
+								users.find(userFd[i].fd)->second->setUserConnection(true);
+							}
+							else if (users.find(userFd[i].fd)->second->getUserConnection()) {
+								std::string msg = "CLIENTS FD: " + std::to_string(userFd[i].fd) + " : ";
+								msg += buf;
+								sendToAllUsers(msg, userFd[i].fd);
+							}
+							else {
+								Send(userFd[i].fd, "SERVER: Invalid password\n", 25, 0);
 							}
 						}
 					}
@@ -165,4 +180,21 @@ int Server::mainLoop() {
 	}
 	close(socketFd);
 	return 0;
+}
+
+void Server::sendToAllUsers(std::string &msg, int currentUserFd) {
+	for (int i = 1; i < this->userFd.size(); i++) {
+		if (userFd[i].fd != currentUserFd &&
+				users.find(userFd[i].fd)->second->getUserConnection()) {
+			Send(userFd[i].fd, msg.c_str(), msg.length(), 0);
+		}
+	}
+}
+
+int Server::Send(int fd, const void *msg, size_t msgSize, int flags) {
+	int sentBytes = send(fd, msg, msgSize, 0);
+	if (sentBytes == -1) {
+		throw std::runtime_error("SERVER ERROR: send");
+	}
+	return sentBytes;
 }

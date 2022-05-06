@@ -19,6 +19,14 @@
 class User {
 private:
 	std::string nick;
+	int fd;
+	bool isConnected;
 public:
-	std::string getNick() {return this->nick; }
+	User(int fd) : fd(fd), isConnected(false) {};
+	~User() {};
+
+	std::string getNick() {return nick; }
+	int getFd() {return fd; }
+	bool getUserConnection() {return isConnected; };
+	void setUserConnection(bool newConnection) {isConnected = newConnection; };
 };
